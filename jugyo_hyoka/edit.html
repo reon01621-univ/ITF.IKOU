@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ITF.IKOU - 授業評価の訂正</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <header class="header"><h1>ITF.IKOU</h1><h3>筑波大学総合学域群非公式情報サイト</h3></header>
+    <div class="site-container">
+        <div class="sidebar">
+            <nav>
+                <ul>
+                    <li><a href="/index.html">TOP</a></li>
+                    <li><a href="/sougou/index.html">総合学域群について</a></li>
+                    <li><a href="#">移行先学類・専門学群</a></li>
+                    <li><a href="/hantei/index.html">移行判定</a></li>
+                    <li><a href="/jugyo_kensaku/index.html">授業評価検索</a></li>
+                </ul>
+            </nav>
+        </div>
+        <main class="main-content">
+            <button id="toggle-sidebar-btn" class="btn-main">サイドバーの表示/非表示</button>
+            <div id="main-app">
+                <div class="panel">
+                    <div id="evaluation-form-container">
+                        <h1>授業評価の訂正</h1>
+                        <p id="loading-message">元の評価データを読み込んでいます...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const container = document.getElementById('evaluation-form-container');
+            const loadingMessage = document.getElementById('loading-message');
+            const params = new URLSearchParams(window.location.search);
+            const evaluationId = params.get('evaluationId');
+            const GAS_URL = 'https://script.google.com/macros/s/AKfycbzoStpKf_iGwO_lSSkBaG-9k3rGhnsnhTpYdfK4XsHYIdQ6nRnQWwUQIpF0StlM-zLGrQ/exec';
+
+            if (!evaluationId) {
+                loadingMessage.textContent = 'エラー: 評価IDが指定されていません。';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${GAS_URL}?evaluationId=${evaluationId}`);
+                const result = await response.json();
+
+                if (result.status !== 'success' || !result.data) {
+                    throw new Error(result.message || '評価データの取得に失敗しました。');
+                }
+                const course = result.data;
+
+                container.innerHTML = `
+                    <h1>授業評価の訂正</h1>
+                    <h2>${course.courseName} (${course.courseNumber})</h2>
+                    <div class="form-group">
+                        <label for="rating">楽単度（高得点の取りやすさ）</label>
+                        <div class="star-rating">
+                            <input type="radio" id="5-stars" name="rating" value="5" /><label for="5-stars" class="star">&#9733;</label>
+                            <input type="radio" id="4-stars" name="rating" value="4" /><label for="4-stars" class="star">&#9733;</label>
+                            <input type="radio" id="3-stars" name="rating" value="3" /><label for="3-stars" class="star">&#9733;</label>
+                            <input type="radio" id="2-stars" name="rating" value="2" /><label for="2-stars" class="star">&#9733;</label>
+                            <input type="radio" id="1-star" name="rating" value="1" /><label for="1-star" class="star">&#9733;</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="grade">主な成績評価方法</label>
+                        <select id="grade">
+                            <option value="">-</option>
+                            <option value="確認テスト">確認テスト</option>
+                            <option value="毎授業後の小テスト">毎授業後の小テスト</option>
+                            <option value="毎授業後の小レポート">毎授業後の小レポート</option>
+                            <option value="期末レポート">期末レポート</option>
+                            <option value="出席,関心意欲態度">出席,関心意欲態度</option>
+                            <option value="その他">その他</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="has-textbook">出席確認の有無</label>
+                        <select id="has-textbook">
+                            <option value="あり">あり</option>
+                            <option value="なし">なし</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="teacher-name">攻略方法</label>
+                        <textarea id="teacher-name" rows="5" placeholder=""></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="comment">その他コメント・レビュー</label>
+                        <textarea id="comment" rows="5" placeholder="授業の感想、テストの形式など"></textarea>
+                    </div>
+                    <button id="submit-evaluation" class="btn-main">入力内容の確認へ</button>
+                `;
+
+                // 取得したデータをフォームに設定
+                if (course.rating) document.querySelector(`input[name="rating"][value="${course.rating}"]`).checked = true;
+                document.getElementById('teacher-name').value = course.teacherName || '';
+                document.getElementById('has-textbook').value = course.hasTextbook || 'あり'; // APIのレスポンスに合わせて 'textbook' -> 'hasTextbook' に
+                document.getElementById('grade').value = course.grade || '';
+                document.getElementById('comment').value = course.comment || '';
+
+                document.getElementById('submit-evaluation').addEventListener('click', () => {
+                    const rating = document.querySelector('input[name="rating"]:checked');
+                    const dataToSave = {
+                        evaluationId: evaluationId, // ★★★ 評価IDを追加 ★★★
+                        courseName: course.courseName,
+                        courseNumber: course.courseNumber,
+                        rating: rating ? rating.value : null,
+                        teacherName: document.getElementById('teacher-name').value,
+                        hasTextbook: document.getElementById('has-textbook').value,
+                        grade: document.getElementById('grade').value,
+                        comment: document.getElementById('comment').value
+                    };
+                    localStorage.setItem('evaluationData', JSON.stringify(dataToSave));
+                    window.location.href = '/jugyo_hyoka/confirm.html';
+                });
+
+            } catch (error) {
+                loadingMessage.textContent = `エラー: ${error.message}`;
+            }
+        });
+    </script>
+    <style>/* jugyo_hyoka/index.html と同じスタイル */</style>
+</body>
+</html>

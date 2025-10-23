@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ITF.IKOU - 評価内容の確認</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+    <header class="header">
+        <h1>ITF.IKOU</h1>
+        <h3>筑波大学総合学域群非公式情報サイト</h3>
+    </header>
+
+    <div class="site-container">
+        <div class="sidebar">
+            <nav>
+                <ul>
+                    <li><a href="/index.html">TOP</a></li>
+                    <li><a href="/sougou/index.html">総合学域群について</a></li>
+                    <li>
+                        <a href="#">移行先学類・専門学群</a>
+                        <ul>
+                            <li><a href="#">情報科学類</a></li>
+                            <li><a href="#">情報メディア創成学類</a></li>
+                            <li><a href="#">知識情報・図書館学類</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/hantei/index.html">移行判定</a>
+                        <ul>
+                            <li><a href="/hantei/keisan.html">点数計算/登録</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/jugyo_kensaku/index.html">授業評価検索</a></li>
+                </ul>
+            </nav>
+        </div>
+
+        <main class="main-content">
+            <div id="main-app">
+                <div class="panel">
+                    <h1>評価内容の確認</h1>
+                    <p>以下の内容で評価を送信します。よろしいですか？</p>
+                    
+                    <div id="confirmation-details">
+                    </div>
+
+                    <div style="margin-top: 20px; display: flex; gap: 10px;">
+                        <button id="edit-button" class="btn-toggle">修正する</button>
+                        <button id="confirm-submit-button" class="btn-main">送信する</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const detailsContainer = document.getElementById('confirmation-details');
+        const submitBtn = document.getElementById('confirm-submit-button');
+        const editBtn = document.getElementById('edit-button');
+        const evaluationData = localStorage.getItem('evaluationData');
+        const userCategory = localStorage.getItem('userCategory') || 'unselected';
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, match => ({'&': '&amp;','<': '&lt;','>': '&gt;','"': '&quot;',"'": '&#39;'})[match]);
+        }
+
+        if (evaluationData) {
+            const data = JSON.parse(evaluationData);
+            const passwordDisplay = data.password ? '****' : '未入力';
+
+            detailsContainer.innerHTML = `
+                <table class="confirmation-table">
+                    <tr><th>授業名</th><td>${escapeHTML(data.courseName)} (${escapeHTML(data.courseNumber)})</td></tr>
+                    <tr><th>楽単度</th><td>${'★'.repeat(data.rating || 0)}${'☆'.repeat(5 - (data.rating || 0))}</td></tr>
+                    <tr><th>出席確認の有無</th><td>${escapeHTML(data.hasTextbook)}</td></tr>
+                    <tr><th>主な成績評価方法</th><td>${escapeHTML(data.grade) || '未選択'}</td></tr>
+                    <tr><th>攻略方法</th><td>${escapeHTML(data.teacherName) || '未入力'}</td></tr>
+                    <tr><th>コメント</th><td style="white-space: pre-wrap;">${escapeHTML(data.comment) || '未入力'}</td></tr>
+                    <tr><th>評価ID</th><td>${escapeHTML(data.evaluationId) || '（新規投稿）'}</td></tr>
+                    <tr><th>パスワード</th><td>${passwordDisplay}</td></tr>
+                </table>
+            `;
+            editBtn.addEventListener('click', () => { window.history.back(); });
+
+            submitBtn.addEventListener('click', async () => {
+                submitBtn.disabled = true;
+                submitBtn.textContent = '送信中...';
+
+                // ★★★ URLはご自身のものに置き換えてください ★★★
+                const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzoStpKf_iGwO_lSSkBaG-9k3rGhnsnhTpYdfK4XsHYIdQ6nRnQWwUQIpF0StlM-zLGrQ/exec';
+
+                try {
+                    const dataToSend = {
+                        type: data.evaluationId ? 'updateEvaluation' : 'evaluation',
+                        category: userCategory,
+                        ...data
+                    };
+
+                    const formData = new FormData();
+                    formData.append('data', JSON.stringify(dataToSend));
+
+                    const response = await fetch(WEB_APP_URL, {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`サーバーエラー (HTTP ${response.status})。GASのURLが正しいか、再デプロイが完了しているか確認してください。`);
+                    }
+
+                    const resultText = await response.text();
+                    const result = JSON.parse(resultText);
+
+
+                    if (result.status === 'success') {
+                        alert('評価が送信されました！ご協力ありがとうございます。');
+                        localStorage.removeItem('evaluationData');
+                        localStorage.removeItem('selectedCourseForEvaluation');
+                        setTimeout(() => {
+                           if(window.opener) {
+                               window.close();
+                           } else {
+                               window.location.href = '/jugyo_kensaku/';
+                           }
+                        }, 2000);
+                    } else {
+                        throw new Error(result.message || '不明なエラーが発生しました。');
+                    }
+
+                } catch (error) {
+                    alert('送信に失敗しました:\n' + error.message);
+                    console.error("Submission Error:", error);
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '送信する';
+                }
+            });
+
+        } else {
+            detailsContainer.innerHTML = '<p>評価データが見つかりません。<a href="/jugyo_kensaku/">授業検索ページ</a>からやり直してください。</p>';
+            editBtn.style.display = 'none';
+            submitBtn.style.display = 'none';
+        }
+    });
+</script>
+    <style>
+        .confirmation-table { width: 100%; }
+        .confirmation-table th, .confirmation-table td { border: 1px solid #eee; padding: 12px; text-align: left; }
+        .confirmation-table th { background-color: #f8f9fa; width: 150px; font-weight: bold; }
+    </style>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ITF.IKOU - 授業評価の詳細</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <header class="header"><h1>ITF.IKOU</h1><h3>筑波大学総合学域群非公式情報サイト</h3></header>
+    <div class="site-container">
+        <div class="sidebar">
+            <nav>
+                <ul>
+                    <li><a href="/index.html">TOP</a></li>
+                    <li><a href="/sougou/index.html">総合学域群について</a></li>
+                    <li>
+                        <a href="#">移行先学類・専門学群</a>
+                        <ul>
+                            <li><a href="#">情報科学類</a></li>
+                            <li><a href="#">情報メディア創成学類</a></li>
+                            <li><a href="#">知識情報・図書館学類</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/hantei/index.html">移行判定</a>
+                        <ul>
+                            <li><a href="/hantei/keisan.html">点数計算/登録</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/jugyo_kensaku/index.html">授業評価検索</a></li>
+                </ul>
+            </nav>
+        </div>
+        <main class="main-content">
+            <div id="main-app">
+                <div class="panel">
+                    <h1 id="course-title">読み込み中...</h1>
+                    <div id="evaluations-container"><p id="loading-message">評価データを読み込んでいます...</p></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const container = document.getElementById('evaluations-container');
+            const title = document.getElementById('course-title');
+            const loadingMessage = document.getElementById('loading-message');
+            const GAS_URL = 'https://script.google.com/macros/s/AKfycbzoStpKf_iGwO_lSSkBaG-9k3rGhnsnhTpYdfK4XsHYIdQ6nRnQWwUQIpF0StlM-zLGrQ/exec';
+            const params = new URLSearchParams(window.location.search);
+            const courseNumber = params.get('courseNumber');
+
+            function escapeHTML(str) { if (!str) return ''; return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]); }
+
+            if (!courseNumber) {
+                title.textContent = 'エラー';
+                loadingMessage.textContent = '科目番号が指定されていません。';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${GAS_URL}?courseNumber=${courseNumber}`);
+                if (!response.ok) throw new Error(`サーバーエラー (Status: ${response.status})`);
+                const result = await response.json();
+                
+                if (result.status === 'success' && result.data.length > 0) {
+                    title.textContent = `${escapeHTML(result.data[0].courseName)} の評価詳細`;
+                    container.innerHTML = '';
+                    
+                    result.data.forEach(e => {
+                        const card = document.createElement('div');
+                        card.className = 'evaluation-card';
+                        const rating = (typeof e.rating === 'number' && !isNaN(e.rating)) ? e.rating : 0;
+                        card.innerHTML = `
+                            <div class="card-header">
+                                <span class="stars">${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}</span>
+                                <span class="date">${new Date(e.timestamp).toLocaleString('ja-JP')}</span>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>出席確認の有無:</strong> ${escapeHTML(e.textbook) || '未入力'}</p>
+                                <p><strong>主な成績評価方法:</strong> ${escapeHTML(e.grade) || '未選択'}</p>
+                                <p><strong>攻略方法:</strong></p>
+                                <p class="comment">${escapeHTML(e.teacherName) || '未入力'}</p>
+                                <p><strong>コメント:</strong></p>
+                                <p class="comment">${escapeHTML(e.comment) || 'コメントなし'}</p>
+                                </div>
+                            <div class="card-footer">
+                                評価ID: ${escapeHTML(e.evaluationId) || 'N/A'}
+                                <button class="btn-edit" data-evaluation-id="${e.evaluationId}" data-course-number="${e.courseNumber}" data-course-name="${e.courseName}">修正</button>
+                            </div>
+                        `;
+                        container.appendChild(card);
+                    });
+
+                    container.querySelectorAll('.btn-edit').forEach(button => {
+                        button.addEventListener('click', (event) => {
+                            const { evaluationId, courseNumber, courseName } = event.target.dataset;
+                            localStorage.setItem('selectedCourseForEvaluation', JSON.stringify({ number: courseNumber, name: courseName }));
+                            window.open(`/jugyo_hyoka/index.html?evaluationId=${evaluationId}`, '_blank');
+                        });
+                    });
+
+                } else if (result.data.length === 0) {
+                     title.textContent = '評価はまだありません';
+                     loadingMessage.textContent = 'この科目の評価はまだ投稿されていません。';
+                } else {
+                    throw new Error(result.message || '不明なエラー');
+                }
+            } catch (error) {
+                 title.textContent = '読み込みエラー';
+                 loadingMessage.textContent = `データの取得に失敗しました: ${error.message}`;
+            }
+        });
+    </script>
+    <style>
+        .evaluation-card{border:1px solid #eee;border-radius:8px;margin-bottom:20px;padding:15px;background-color:#fcfcfc;position:relative;}
+        .card-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eee;padding-bottom:10px;margin-bottom:10px;}
+        .stars{font-size:1.5em;color:#f7d106;}
+        .date{font-size:.9em;color:#888;}
+        .card-body p{margin:8px 0 2px;}
+        .comment{background-color:#f5f5f5;padding:10px;border-radius:5px;white-space:pre-wrap;word-wrap:break-word;margin-top:2px;}
+        .card-footer{border-top:1px solid #eee;padding-top:10px;margin-top:15px;font-size:0.8em;color:#aaa;text-align:right;}
+    </style>
+</body>
+</html>
