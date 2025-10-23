@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ITF.IKOU - 授業評価検索</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+    <header class="header">
+        <h1>ITF.IKOU</h1>
+        <h3>筑波大学総合学域群非公式情報サイト</h3>
+    </header>
+
+    <div class="site-container">
+        <div class="sidebar">
+            <nav>
+                <ul>
+                    <li><a href="/index.html">TOP</a></li>
+                    <li><a href="/sougou/index.html">総合学域群について</a></li>
+                    <li>
+                        <a href="#">移行先学類・専門学群</a>
+                        <ul>
+                            <li><a href="#">情報科学類</a></li>
+                            <li><a href="#">情報メディア創成学類</a></li>
+                            <li><a href="#">知識情報・図書館学類</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/hantei/index.html">移行判定</a>
+                        <ul>
+                            <li><a href="/hantei/keisan.html">点数計算/登録</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/jugyo_kensaku/index.html">授業評価検索</a></li>
+                </ul>
+            </nav>
+        </div>
+
+        <main class="main-content">
+            <div id="main-app">
+                <div class="panel">
+                    <h1>授業検索</h1>
+                    <p>kdbの情報をもとに、科目名または科目番号で授業を検索できます。</p>
+                    <div class="search-section">
+                        <div id="loading-status">データ読み込み中...</div>
+                        <input type="text" id="search-input" placeholder="科目名または科目番号を入力..." disabled>
+                        <div class="filter-options">
+                            <label>
+                                <input type="checkbox" id="hide-unrated-checkbox">
+                                評価のない科目を非表示
+                            </label>
+                        </div>
+                        <div id="diagnostic-message" style="margin-top: 10px; color: #666; font-size: 0.9em; text-align: center;"></div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="course-table">
+                            <thead>
+                                <tr>
+                                    <th>科目番号</th>
+                                    <th>科目名</th>
+                                    <th>単位数</th>
+                                    <th>平均評価</th>
+                                    <th>アクション</th>
+                                </tr>
+                            </thead>
+                            <tbody id="course-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const searchInput = document.getElementById('search-input');
+            const tableBody = document.getElementById('course-table-body');
+            const loadingStatus = document.getElementById('loading-status');
+            const hideUnratedCheckbox = document.getElementById('hide-unrated-checkbox');
+            const diagnosticMessage = document.getElementById('diagnostic-message'); // ★★★
+            let masterCourses = [];
+            let averageRatings = {};
+            
+            // このURLは前回のもので問題ないはずです。変更しないでください。
+            const GAS_URL = 'https://script.google.com/macros/s/AKfycbzoStpKf_iGwO_lSSkBaG-9k3rGhnsnhTpYdfK4XsHYIdQ6nRnQWwUQIpF0StlM-zLGrQ/exec';
+
+            function performSearchAndFilter() {
+                const query = searchInput.value;
+                if (!query || query.length < 1) {
+                    tableBody.innerHTML = '';
+                    return;
+                }
+                const lowerCaseQuery = query.toLowerCase().trim();
+                
+                let filteredCourses = masterCourses.filter(course => 
+                    course.name.toLowerCase().includes(lowerCaseQuery) || course.number.toLowerCase().includes(lowerCaseQuery)
+                );
+
+                if (hideUnratedCheckbox.checked) {
+                    filteredCourses = filteredCourses.filter(course => averageRatings[course.number]);
+                }
+                
+                renderTable(filteredCourses);
+            }
+
+            try {
+                loadingStatus.textContent = '科目・評価データを読み込み中...';
+                
+                const [csvResponse, ratingResponse] = await Promise.all([
+                    fetch('/hantei/kdb_2025.csv'),
+                    fetch(GAS_URL)
+                ]);
+
+                // 科目データの処理
+                const csvText = await csvResponse.text();
+                Papa.parse(csvText, {
+                    header: true, skipEmptyLines: true,
+                    complete: (results) => {
+                        masterCourses = results.data.map(row => ({
+                            number: row['科目番号'] || '', name: row['科目名'] || '', credits: row['単位数'] || ''
+                        }));
+                    }
+                });
+                
+                // 評価データの処理
+                if (!ratingResponse.ok) throw new Error(`評価データの取得に失敗 (HTTP Status: ${ratingResponse.status})`);
+                const ratingResult = await ratingResponse.json();
+                if (ratingResult.status === 'success') {
+                    averageRatings = ratingResult.data;
+                    // ★★★ 新機能: 評価データが空の場合にメッセージを表示 ★★★
+                    if (Object.keys(averageRatings).length === 0) {
+                        diagnosticMessage.textContent = '（現在、スプレッドシートに評価データがありません。評価を投稿すると科目名がリンクになります。）';
+                    }
+                } else {
+                    throw new Error(`評価データの処理中にエラー: ${ratingResult.message}`);
+                }
+
+                loadingStatus.textContent = '✅ 読み込み完了';
+                searchInput.disabled = false;
+                searchInput.placeholder = '科目名または科目番号を入力...';
+                setTimeout(() => { loadingStatus.style.display = 'none'; }, 2000);
+
+                const hidePref = localStorage.getItem('hideUnratedPreference');
+                if (hidePref === 'true') {
+                    hideUnratedCheckbox.checked = true;
+                }
+
+                const savedQuery = localStorage.getItem('jugyoSearchQuery');
+                if (savedQuery) {
+                    searchInput.value = savedQuery;
+                    performSearchAndFilter();
+                }
+
+            } catch (error) {
+                loadingStatus.textContent = `❌ データ読み込みに失敗しました。ページを再読み込みしてください。`;
+                console.error('Data Fetch Error:', error);
+            }
+
+            function getStarRating(avg) {
+                if (typeof avg !== 'number' || isNaN(avg)) return '評価なし';
+                const rounded = Math.round(avg);
+                return '★'.repeat(rounded) + '☆'.repeat(5 - rounded);
+            }
+
+            function renderTable(courses) {
+                tableBody.innerHTML = '';
+                const displayLimit = 100;
+                const itemsToDisplay = courses.slice(0, displayLimit);
+
+                itemsToDisplay.forEach(course => {
+                    const ratingData = averageRatings[course.number];
+                    const ratingText = ratingData ? `${getStarRating(ratingData.average)} (${ratingData.count}件)` : '評価なし';
+                    
+                    const courseNameCell = ratingData 
+                        ? `<a href="/jugyo_hyoka/details.html?courseNumber=${course.number}" target="_blank">${course.name}</a>`
+                        : course.name;
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${course.number}</td>
+                        <td>${courseNameCell}</td>
+                        <td>${course.credits}</td>
+                        <td>${ratingText}</td>
+                        <td>
+                           <button class="btn-main btn-evaluate" style="padding: 5px 10px; font-size: 14px;">評価する</button>
+                        </td>
+                    `;
+                    row.querySelector('.btn-evaluate').addEventListener('click', () => {
+                        localStorage.setItem('selectedCourseForEvaluation', JSON.stringify(course));
+                        window.open('/jugyo_hyoka/index.html', '_blank');
+                    });
+                    tableBody.appendChild(row);
+                });
+
+                if (courses.length > displayLimit) {
+                     const row = document.createElement('tr');
+                     const cell = document.createElement('td');
+                     cell.colSpan = 5;
+                     cell.textContent = `${displayLimit}件以上ヒットしました。さらに絞り込んでください。`;
+                     cell.style.textAlign = 'center';
+                     cell.style.color = '#666';
+                     row.appendChild(cell);
+                     tableBody.appendChild(row);
+                }
+            }
+
+            searchInput.addEventListener('input', () => {
+                localStorage.setItem('jugyoSearchQuery', searchInput.value);
+                performSearchAndFilter();
+            });
+
+            hideUnratedCheckbox.addEventListener('change', () => {
+                localStorage.setItem('hideUnratedPreference', hideUnratedCheckbox.checked);
+                performSearchAndFilter();
+            });
+        });
+    </script>
+    <style>
+        .filter-options {
+            margin-top: 10px;
+            text-align: right;
+        }
+    </style>
+</body>
+</html>
