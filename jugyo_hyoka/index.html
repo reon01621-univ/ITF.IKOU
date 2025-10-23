@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ITF.IKOU - 授業評価</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+    <header class="header">
+        <h1>ITF.IKOU</h1>
+        <h3>筑波大学総合学域群非公式情報サイト</h3>
+    </header>
+
+    <div class="site-container">
+        <div class="sidebar">
+            <nav>
+                <ul>
+                    <li><a href="/index.html">TOP</a></li>
+                    <li><a href="/sougou/index.html">総合学域群について</a></li>
+                    <li>
+                        <a href="#">移行先学類・専門学群</a>
+                        <ul>
+                            <li><a href="#">情報科学類</a></li>
+                            <li><a href="#">情報メディア創成学類</a></li>
+                            <li><a href="#">知識情報・図書館学類</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/hantei/index.html">移行判定</a>
+                        <ul>
+                            <li><a href="/hantei/keisan.html">点数計算/登録</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="/jugyo_kensaku/index.html">授業評価検索</a></li>
+                </ul>
+            </nav>
+        </div>
+
+        <main class="main-content">
+            <div id="main-app">
+                <div class="panel">
+                    <div id="evaluation-form-container">
+                        </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const container = document.getElementById('evaluation-form-container');
+        const courseData = localStorage.getItem('selectedCourseForEvaluation');
+        const savedData = localStorage.getItem('evaluationData') ? JSON.parse(localStorage.getItem('evaluationData')) : {};
+        const params = new URLSearchParams(window.location.search);
+        const evaluationId = params.get('evaluationId');
+        
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzoStpKf_iGwO_lSSkBaG-9k3rGhnsnhTpYdfK4XsHYIdQ6nRnQWwUQIpF0StlM-zLGrQ/exec';
+
+        if (courseData) {
+            const course = JSON.parse(courseData);
+
+            // フォームのHTMLを生成
+            // ★★★ 削除ボタン用のコンテナを追加 ★★★
+            container.innerHTML = `
+                <h1>${evaluationId ? '授業評価の修正' : '授業評価'}</h1>
+                <h2>${course.name} (${course.number})</h2>
+                <div class="form-group">
+                    <label for="rating">楽単度（高得点の取りやすさ）</label>
+                    <div class="star-rating">
+                        <input type="radio" id="5-stars" name="rating" value="5" /><label for="5-stars" class="star">&#9733;</label>
+                        <input type="radio" id="4-stars" name="rating" value="4" /><label for="4-stars" class="star">&#9733;</label>
+                        <input type="radio" id="3-stars" name="rating" value="3" /><label for="3-stars" class="star">&#9733;</label>
+                        <input type="radio" id="2-stars" name="rating" value="2" /><label for="2-stars" class="star">&#9733;</label>
+                        <input type="radio" id="1-star" name="rating" value="1" /><label for="1-star" class="star">&#9733;</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="grade">主な成績評価方法</label>
+                     <select id="grade">
+                        <option value="">-</option>
+                        <option value="確認テスト">確認テスト</option>
+                        <option value="毎授業後の小テスト">毎授業後の小テスト</option>
+                        <option value="毎授業後の小レポート">毎授業後の小レポート</option>
+                        <option value="期末レポート">期末レポート</option>
+                        <option value="出席,関心意欲態度">出席,関心意欲態度</option>
+                        <option value="その他">その他</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="has-textbook">出席確認の有無</label>
+                    <select id="has-textbook">
+                        <option value="あり">あり</option>
+                        <option value="なし">なし</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="teacher-name">攻略方法</label>
+                    <textarea id="teacher-name" rows="5" placeholder=""></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="comment">その他コメント・レビュー</label>
+                    <textarea id="comment" rows="5" placeholder="授業の感想、テストの形式など"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="password">パスワード（投稿・修正・削除時に使用）</label>
+                    <input type="password" id="password" placeholder="修正・削除用のパスワードを入力">
+                </div>
+                <div id="button-container" style="display: flex; gap: 10px; align-items: center;">
+                    <button id="submit-evaluation" class="btn-main">入力内容の確認へ</button>
+                </div>
+            `;
+
+            if (evaluationId) {
+                // --- 修正の場合の処理 ---
+                try {
+                    const response = await fetch(`${GAS_URL}?courseNumber=${course.number}`);
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        const targetEvaluation = result.data.find(e => e.evaluationId === evaluationId);
+                        if (targetEvaluation) {
+                            if (targetEvaluation.rating) document.querySelector(`input[name="rating"][value="${targetEvaluation.rating}"]`).checked = true;
+                            document.getElementById('teacher-name').value = targetEvaluation.teacherName || '';
+                            document.getElementById('has-textbook').value = targetEvaluation.hasTextbook || 'あり';
+                            document.getElementById('grade').value = targetEvaluation.grade || '';
+                            document.getElementById('comment').value = targetEvaluation.comment || '';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch evaluation data:', error);
+                }
+                
+                // ★★★ 削除ボタンを動的に追加 ★★★
+                const buttonContainer = document.getElementById('button-container');
+                const deleteButton = document.createElement('button');
+                deleteButton.id = 'delete-evaluation';
+                deleteButton.className = 'btn-remove'; // style.cssの赤色ボタンスタイルを適用
+                deleteButton.textContent = 'この評価を削除する';
+                buttonContainer.appendChild(deleteButton);
+
+                // 削除ボタンのイベントリスナー
+                deleteButton.addEventListener('click', async () => {
+                    const password = document.getElementById('password').value;
+                    if (!password) {
+                        alert('削除するにはパスワードを入力してください。');
+                        return;
+                    }
+                    if (!confirm('本当にこの評価を削除しますか？この操作は元に戻せません。')) {
+                        return;
+                    }
+
+                    deleteButton.disabled = true;
+                    deleteButton.textContent = '削除中...';
+
+// ... (前略) ...
+                    try {
+                        // ★★★ここから修正★★★
+                        const dataToSend = {
+                            type: 'deleteEvaluation',
+                            evaluationId: evaluationId,
+                            password: password
+                        };
+
+                        const formData = new FormData();
+                        formData.append('data', JSON.stringify(dataToSend));
+
+                        const response = await fetch(GAS_URL, {
+                            method: 'POST',
+                            body: formData,
+                        });
+                        // ★★★ここまで修正★★★
+
+                        const resultText = await response.text(); // JSONではなくテキストとしてまず受け取る
+                        const result = JSON.parse(resultText); // その後JSONとして解析
+
+                        if (result.status === 'success') {
+                            alert('評価を削除しました。');
+                            // ウィンドウを閉じるか、前のページに戻る
+                            if(window.opener) {
+                               window.close();
+                            } else {
+                               window.location.href = '/jugyo_kensaku/';
+                            }
+                        } else {
+                            throw new Error(result.message);
+                        }
+// ... (後略) ...
+                    } catch (error) {
+                        alert(`削除に失敗しました:\n${error.message}`);
+                        deleteButton.disabled = false;
+                        deleteButton.textContent = 'この評価を削除する';
+                    }
+                });
+
+            } else {
+                // --- 新規投稿の場合の処理 ---
+                if (savedData.courseNumber === course.number) {
+                    if (savedData.rating) document.querySelector(`input[name="rating"][value="${savedData.rating}"]`).checked = true;
+                    document.getElementById('teacher-name').value = savedData.teacherName || '';
+                    document.getElementById('has-textbook').value = savedData.hasTextbook || 'あり';
+                    document.getElementById('grade').value = savedData.grade || '';
+                    document.getElementById('comment').value = savedData.comment || '';
+                }
+            }
+
+            // 確認ボタンのイベントリスナー
+            document.getElementById('submit-evaluation').addEventListener('click', () => {
+                const rating = document.querySelector('input[name="rating"]:checked');
+                const password = document.getElementById('password').value;
+
+                if (evaluationId && !password) {
+                    alert('評価を修正するには、登録したパスワードを入力してください。');
+                    return;
+                }
+                
+                const dataToSave = {
+                    evaluationId: evaluationId,
+                    courseName: course.name,
+                    courseNumber: course.number,
+                    rating: rating ? rating.value : null,
+                    teacherName: document.getElementById('teacher-name').value,
+                    hasTextbook: document.getElementById('has-textbook').value,
+                    grade: document.getElementById('grade').value,
+                    comment: document.getElementById('comment').value,
+                    password: password
+                };
+
+                localStorage.setItem('evaluationData', JSON.stringify(dataToSave));
+                window.location.href = '/jugyo_hyoka/confirm.html';
+            });
+
+        } else {
+            container.innerHTML = `
+                <h1>評価する授業が選択されていません</h1>
+                <p>授業を評価するには、まず<a href="/jugyo_kensaku/">授業検索ページ</a>で授業を選択してください。</p>
+            `;
+        }
+    });
+</script>
+    <style>
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
+        }
+        .star-rating {
+            display: flex;
+            flex-direction: row-reverse;
+            justify-content: flex-end;
+        }
+        .star-rating input { display: none; }
+        .star-rating label {
+            font-size: 2.5em;
+            color: #ddd;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .star-rating input:checked ~ label,
+        .star-rating:not(:checked) > label:hover,
+        .star-rating:not(:checked) > label:hover ~ label {
+            color: #f7d106;
+        }
+    </style>
+</body>
+</html>
