@@ -64,8 +64,6 @@
         if (courseData) {
             const course = JSON.parse(courseData);
 
-            // フォームのHTMLを生成
-            // ★★★ 削除ボタン用のコンテナを追加 ★★★
             container.innerHTML = `
                 <h1>${evaluationId ? '授業評価の修正' : '授業評価'}</h1>
                 <h2>${course.name} (${course.number})</h2>
@@ -134,7 +132,6 @@
                     console.error('Failed to fetch evaluation data:', error);
                 }
                 
-                // ★★★ 削除ボタンを動的に追加 ★★★
                 const buttonContainer = document.getElementById('button-container');
                 const deleteButton = document.createElement('button');
                 deleteButton.id = 'delete-evaluation';
@@ -142,7 +139,6 @@
                 deleteButton.textContent = 'この評価を削除する';
                 buttonContainer.appendChild(deleteButton);
 
-                // 削除ボタンのイベントリスナー
                 deleteButton.addEventListener('click', async () => {
                     const password = document.getElementById('password').value;
                     if (!password) {
@@ -156,9 +152,8 @@
                     deleteButton.disabled = true;
                     deleteButton.textContent = '削除中...';
 
-// ... (前略) ...
                     try {
-                        // ★★★ここから修正★★★
+                        
                         const dataToSend = {
                             type: 'deleteEvaluation',
                             evaluationId: evaluationId,
@@ -172,14 +167,14 @@
                             method: 'POST',
                             body: formData,
                         });
-                        // ★★★ここまで修正★★★
 
-                        const resultText = await response.text(); // JSONではなくテキストとしてまず受け取る
-                        const result = JSON.parse(resultText); // その後JSONとして解析
+
+                        const resultText = await response.text();
+                        const result = JSON.parse(resultText);
 
                         if (result.status === 'success') {
                             alert('評価を削除しました。');
-                            // ウィンドウを閉じるか、前のページに戻る
+                            
                             if(window.opener) {
                                window.close();
                             } else {
@@ -188,7 +183,7 @@
                         } else {
                             throw new Error(result.message);
                         }
-// ... (後略) ...
+                        
                     } catch (error) {
                         alert(`削除に失敗しました:\n${error.message}`);
                         deleteButton.disabled = false;
@@ -197,7 +192,7 @@
                 });
 
             } else {
-                // --- 新規投稿の場合の処理 ---
+
                 if (savedData.courseNumber === course.number) {
                     if (savedData.rating) document.querySelector(`input[name="rating"][value="${savedData.rating}"]`).checked = true;
                     document.getElementById('teacher-name').value = savedData.teacherName || '';
@@ -207,7 +202,7 @@
                 }
             }
 
-            // 確認ボタンのイベントリスナー
+
             document.getElementById('submit-evaluation').addEventListener('click', () => {
                 const rating = document.querySelector('input[name="rating"]:checked');
                 const password = document.getElementById('password').value;
