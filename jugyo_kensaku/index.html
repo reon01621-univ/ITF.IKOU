@@ -84,11 +84,10 @@
             const tableBody = document.getElementById('course-table-body');
             const loadingStatus = document.getElementById('loading-status');
             const hideUnratedCheckbox = document.getElementById('hide-unrated-checkbox');
-            const diagnosticMessage = document.getElementById('diagnostic-message'); // ★★★
+            const diagnosticMessage = document.getElementById('diagnostic-message'); 
             let masterCourses = [];
             let averageRatings = {};
             
-            // このURLは前回のもので問題ないはずです。変更しないでください。
             const GAS_URL = 'https://script.google.com/macros/s/AKfycbzoStpKf_iGwO_lSSkBaG-9k3rGhnsnhTpYdfK4XsHYIdQ6nRnQWwUQIpF0StlM-zLGrQ/exec';
 
             function performSearchAndFilter() {
@@ -134,7 +133,7 @@
                 const ratingResult = await ratingResponse.json();
                 if (ratingResult.status === 'success') {
                     averageRatings = ratingResult.data;
-                    // ★★★ 新機能: 評価データが空の場合にメッセージを表示 ★★★
+                    // ★★★ 評価データが空の場合にメッセージを表示 ★★★
                     if (Object.keys(averageRatings).length === 0) {
                         diagnosticMessage.textContent = '（現在、スプレッドシートに評価データがありません。評価を投稿すると科目名がリンクになります。）';
                     }
