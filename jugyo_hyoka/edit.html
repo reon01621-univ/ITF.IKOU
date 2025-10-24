@@ -101,14 +101,14 @@
                 // 取得したデータをフォームに設定
                 if (course.rating) document.querySelector(`input[name="rating"][value="${course.rating}"]`).checked = true;
                 document.getElementById('teacher-name').value = course.teacherName || '';
-                document.getElementById('has-textbook').value = course.hasTextbook || 'あり'; // APIのレスポンスに合わせて 'textbook' -> 'hasTextbook' に
+                document.getElementById('has-textbook').value = course.hasTextbook || 'あり';
                 document.getElementById('grade').value = course.grade || '';
                 document.getElementById('comment').value = course.comment || '';
 
                 document.getElementById('submit-evaluation').addEventListener('click', () => {
                     const rating = document.querySelector('input[name="rating"]:checked');
                     const dataToSave = {
-                        evaluationId: evaluationId, // ★★★ 評価IDを追加 ★★★
+                        evaluationId: evaluationId,
                         courseName: course.courseName,
                         courseNumber: course.courseNumber,
                         rating: rating ? rating.value : null,
